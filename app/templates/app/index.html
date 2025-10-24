@@ -112,191 +112,313 @@
 
   <script src="{% static 'app/js/leaflet-sidebar.js' %}"></script>
 
-    <script>
-    // Инициализация логгера
+  <script>
+    /**
+     * Инициализация кастомного логгера для отладки приложения
+     * Предоставляет методы для логирования с разными уровнями важности
+     */
     var log = {
+        /**
+         * Логирование отладочной информации
+         * @param {string} msg - Текст сообщения
+         * @param {any} data - Данные для логирования
+         */
         debug: function(msg, data) { console.log(msg, data); },
+        
+        /**
+         * Логирование ошибок
+         * @param {string} msg - Текст сообщения об ошибке
+         */
         error: function(msg) { console.error(msg); },
+        
+        /**
+         * Получение текущего уровня логирования
+         * @returns {number} Уровень логирования
+         */
         getLevel: function() { return 1; },
+        
+        /**
+         * Установка уровня логирования
+         * @param {string} level - Уровень логирования ('debug', 'warn', etc.)
+         */
         setLevel: function(level) { console.log('Log level set to:', level); }
     };
 
+
+    // Инициализация карты Leaflet с центром в координатах Москвы
     var map = L.map('map');
+    // Установка начального вида карты: [широта, долгота], уровень масштабирования
     map.setView([55.753989, 37.623191], 11);
 
+    // Добавление слоя тайлов OpenStreetMap на карту
     L.tileLayer.provider('OpenStreetMap.Mapnik').addTo(map);
 
+    /**
+     * Инициализация боковой панели для отображения информации о местах
+     * @type {L.Control.Sidebar}
+     */
     var sidebar = L.control.sidebar('sidebar', {
-      closeButton: true,
-      position: 'right'
+        closeButton: true,    // Отображение кнопки закрытия
+        position: 'right'     // Позиция панели - справа
     });
     map.addControl(sidebar);
 
-    // FIXME should be hidden in production mode
+
+    /**
+     * Создание кастомного контрола для отладки (должен быть скрыт в продакшене)
+     * FIXME: следует скрыть в продакшен-режиме
+     */
     L.control.custom({
-      position: 'bottomleft',
-      content: `
-        <label>
-            <input name="debug" type="checkbox" ${log.getLevel()<=1 && 'checked'}/>
-            Отладка
-        </label>`,
-      style: {
-        padding: '10px',
-        background: 'rgba(255, 255, 255, 0.7)',
-      },
-      events: {
-        click: event => {
-          if (event.target.name == 'debug'){
-            let level = event.target.checked ? 'debug' : 'warn';
-            log.setLevel(level);
-            console.log(`Set log level: ${level}`)
-          }
+        position: 'bottomleft',  // Позиция в левом нижнем углу карты
+        content: `
+            <label>
+                <input name="debug" type="checkbox" ${log.getLevel()<=1 && 'checked'}/>
+                Отладка
+            </label>`,
+        style: {
+            padding: '10px',
+            background: 'rgba(255, 255, 255, 0.7)',  // Полупрозрачный белый фон
         },
-      }
+        events: {
+            /**
+             * Обработчик клика по чекбоксу отладки
+             * @param {Event} event - Событие клика
+             */
+            click: event => {
+                if (event.target.name == 'debug'){
+                    // Установка уровня логирования в зависимости от состояния чекбокса
+                    let level = event.target.checked ? 'debug' : 'warn';
+                    log.setLevel(level);
+                    console.log(`Set log level: ${level}`)
+                }
+            },
+        }
     }).addTo(map);
 
-    // Функция загрузки GeoJSON из API
+    /**
+     * Асинхронная функция для загрузки GeoJSON данных мест из API
+     * @async
+     * @returns {Promise<Object>} Promise с GeoJSON объектом мест
+     */
     async function loadPlacesGeoJSON(){
-      try {
-        const response = await fetch('/places.geojson');
-        if (!response.ok) {
-          throw new Error(`HTTP error! status: ${response.status}`);
+        try {
+            // Выполнение GET запроса к API для получения данных мест
+            const response = await fetch('/places.geojson');
+            if (!response.ok) {
+                throw new Error(`HTTP error! status: ${response.status}`);
+            }
+            // Парсинг JSON ответа
+            const geojson = await response.json();
+            log.debug('Loaded GeoJSON from API', geojson);
+            return geojson;
+        } catch (error) {
+            console.error('Error loading places GeoJSON:', error);
+            // Возвращаем пустой GeoJSON в случае ошибки
+            return {
+                type: "FeatureCollection",
+                features: []
+            };
         }
-        const geojson = await response.json();
-        log.debug('Loaded GeoJSON from API', geojson);
-        return geojson;
-      } catch (error) {
-        console.error('Error loading places GeoJSON:', error);
-        // Возвращаем пустой GeoJSON в случае ошибки
-        return {
-          type: "FeatureCollection",
-          features: []
-        };
-      }
     }
 
-    // Инициализация карты с данными из API
+    /**
+     * Асинхронная функция инициализации карты с загрузкой данных мест
+     * @async
+     */
     async function initMapWithPlaces(){
-      const places = await loadPlacesGeoJSON();
-      
-      L.geoJSON(places, {
-          pointToLayer: function(geoJsonPoint, latlng) {
-            if (geoJsonPoint.geometry.type != "Point"){
-              return;
+        // Загрузка данных мест из API
+        const places = await loadPlacesGeoJSON();
+        
+        /**
+         * Добавление GeoJSON слоя с местами на карту
+         * с кастомными маркерами и обработчиками событий
+         */
+        L.geoJSON(places, {
+            /**
+             * Функция создания кастомных маркеров для точек на карте
+             * @param {Object} geoJsonPoint - GeoJSON объект точки
+             * @param {L.LatLng} latlng - Координаты точки
+             * @returns {L.Marker} Созданный маркер
+             */
+            pointToLayer: function(geoJsonPoint, latlng) {
+                // Проверка типа геометрии (должна быть Point)
+                if (geoJsonPoint.geometry.type != "Point"){
+                    return;
+                }
+
+                // Определение цвета маркера (красный по умолчанию)
+                let color = geoJsonPoint.properties.color || 'red';
+
+                // Создание пульсирующей иконки для маркера
+                var pulsingIcon = L.icon.pulse({
+                    iconSize: [12, 12],    // Размер иконки
+                    color: color,          // Цвет пульсации
+                    fillColor: color,      // Цвет заливки
+                    heartbeat: 2.5,        // Скорость пульсации
+                });
+
+                // Создание маркера с пульсирующей иконкой
+                let marker = L.marker(latlng, {
+                    icon: pulsingIcon,
+                    riseOnHover: true,     // Поднятие маркера при наведении
+                });
+
+                // Привязка всплывающей подсказки с названием места
+                marker.bindTooltip(geoJsonPoint.properties.title);
+                
+                // Привязка попапа с названием места
+                marker.bindPopup(function (layer) {
+                    return geoJsonPoint.properties.title;
+                });
+
+                /**
+                 * Обработчик клика по маркеру
+                 * @param {Event} event - Событие клика
+                 */
+                marker.on('click', function(event){
+                    log.debug('Feature selected', geoJsonPoint);
+                    // Показать боковую панель
+                    sidebar.show();
+                    // Загрузить информацию о выбранном месте
+                    loadPlaceInfo(geoJsonPoint.properties.placeId, geoJsonPoint.properties.detailsUrl);
+                });
+                return marker;
+            }
+        }).addTo(map);
+    }
+
+
+    /**
+     * Vue.js приложение для управления боковой панелью
+     * @type {Vue}
+     */
+    var sidebarApp = new Vue({
+        el: '#sidebar-app',  // Элемент DOM для монтирования приложения
+        template: document.getElementById('app-template').innerHTML,  // Шаблон из HTML
+        data: {
+            loadingPlaceId: null,    // ID загружаемого места (null если не загружается)
+            selectedPlace: null      // Данные выбранного места
+        },
+        computed: {
+            /**
+             * Определяет, нужно ли показывать приглашение выбрать место
+             * @returns {boolean}
+             */
+            promptVisible: function () {
+                return !this.loading && !this.selectedPlace;
+            },
+            
+            /**
+             * Определяет, выполняется ли загрузка данных
+             * @returns {boolean}
+             */
+            loading: function () {
+                return this.loadingPlaceId !== null;
+            },
+            
+            /**
+             * Возвращает URL главного изображения места
+             * @returns {string|null} URL изображения или null
+             */
+            mainPhotoSrc: function () {
+                if (!this.selectedPlace || !this.selectedPlace.imgs || !this.selectedPlace.imgs.length){
+                    return null;
+                }
+                return this.selectedPlace.imgs[0];
+            },
+            
+            /**
+             * Возвращает массив изображений для карусели (все кроме первого)
+             * @returns {Array} Массив URL изображений
+             */
+            carouselImgs: function () {
+                if (!this.selectedPlace || !this.selectedPlace.imgs || !this.selectedPlace.imgs.length){
+                    return [];
+                }
+                return this.selectedPlace.imgs.slice(1);
+            },
+        },
+        /**
+         * Хук жизненного цикла Vue - вызывается после обновления DOM
+         */
+        updated: function () {
+            this.$nextTick(function () {
+                // Инициализация карусели изображений после обновления DOM
+                if ($('#place-photos').length) {
+                    $('#place-photos').carousel();
+                }
+            });
+        },
+        methods: {
+            /**
+             * Обработчик клика по элементам управления каруселью
+             * @param {string|number} slideId - ID слайда или направление ('prev'/'next')
+             */
+            handlePhotosClick: function(slideId) {
+                if ($('#place-photos').length) {
+                    $('#place-photos').carousel(slideId);
+                }
+            }
+        },
+    });
+
+    /**
+     * Обработчик клика по карте (сбрасывает выбранное место)
+     */
+    map.on('click', function () {
+        sidebarApp.selectedPlace = null;
+        sidebarApp.loadingPlaceId = null;
+    });
+
+
+    /**
+     * Асинхронная функция загрузки детальной информации о месте
+     * @async
+     * @param {string} placeId - ID места
+     * @param {string} detailsUrl - URL для загрузки детальной информации
+     */
+    async function loadPlaceInfo(placeId, detailsUrl){
+        // Сброс предыдущих данных
+        sidebarApp.selectedPlace = null;
+        sidebarApp.loadingPlaceId = placeId;
+
+        try {
+            // Запрос детальной информации о месте
+            let response = await fetch(detailsUrl);
+
+            if (!response.ok){
+                console.error('Failed to load place info:', response.status);
+                return;
             }
 
-            let color = geoJsonPoint.properties.color || 'red';
+            // Парсинг JSON ответа
+            let data = await response.json();
 
-            var pulsingIcon = L.icon.pulse({
-              iconSize: [12, 12],
-              color: color,
-              fillColor: color,
-              heartbeat: 2.5,
-            });
+            // Проверка, не был ли запрос отменен пользователем
+            if (sidebarApp.loadingPlaceId != placeId){
+                return;
+            }
 
-            let marker = L.marker(latlng, {
-              icon: pulsingIcon,
-              riseOnHover: true,
-            });
-
-            marker.bindTooltip(geoJsonPoint.properties.title);
-            marker.bindPopup(function (layer) {
-              return geoJsonPoint.properties.title;
-            });
-
-            marker.on('click', function(event){
-              log.debug('Feature selected', geoJsonPoint);
-              sidebar.show();
-              loadPlaceInfo(geoJsonPoint.properties.placeId, geoJsonPoint.properties.detailsUrl);
-            });
-            return marker;
-          }
-      }).addTo(map);
+            // Обновление данных выбранного места
+            sidebarApp.selectedPlace = {
+                title: data.title,
+                placeId: placeId,
+                imgs: data.imgs || [],
+                short_description: data.description_short,
+                long_description: data.description_long,
+            };
+        } catch (error) {
+            console.error('Error loading place info:', error);
+        } finally {
+            // Сброс флага загрузки после завершения
+            if (sidebarApp.loadingPlaceId == placeId){
+                sidebarApp.loadingPlaceId = null;
+            }
+        }
     }
 
-    var sidebarApp = new Vue({
-      el: '#sidebar-app',
-      template: document.getElementById('app-template').innerHTML,
-      data: {
-        loadingPlaceId: null,
-        selectedPlace: null
-      },
-      computed: {
-        promptVisible: function () {
-          return !this.loading && !this.selectedPlace;
-        },
-        loading: function () {
-          return this.loadingPlaceId !== null;
-        },
-        mainPhotoSrc: function () {
-          if (!this.selectedPlace || !this.selectedPlace.imgs || !this.selectedPlace.imgs.length){
-            return null;
-          }
-          return this.selectedPlace.imgs[0];
-        },
-        carouselImgs: function () {
-          if (!this.selectedPlace || !this.selectedPlace.imgs || !this.selectedPlace.imgs.length){
-            return [];
-          }
-          return this.selectedPlace.imgs.slice(1);
-        },
-      },
-      updated: function () {
-        this.$nextTick(function () {
-          if ($('#place-photos').length) {
-            $('#place-photos').carousel();
-          }
-        });
-      },
-      methods: {
-        handlePhotosClick: function(slideId) {
-          if ($('#place-photos').length) {
-            $('#place-photos').carousel(slideId);
-          }
-        }
-      },
-    });
 
-    map.on('click', function () {
-      sidebarApp.selectedPlace = null;
-      sidebarApp.loadingPlaceId = null;
-    });
-
-    async function loadPlaceInfo(placeId, detailsUrl){
-      sidebarApp.selectedPlace = null;
-      sidebarApp.loadingPlaceId = placeId;
-
-      try {
-        let response = await fetch(detailsUrl);
-
-        if (!response.ok){
-          console.error('Failed to load place info:', response.status);
-          return;
-        }
-
-        let data = await response.json();
-
-        if (sidebarApp.loadingPlaceId != placeId){
-          return;
-        }
-
-        sidebarApp.selectedPlace = {
-          title: data.title,
-          placeId: placeId,
-          imgs: data.imgs || [],
-          short_description: data.description_short,
-          long_description: data.description_long,
-        };
-      } catch (error) {
-        console.error('Error loading place info:', error);
-      } finally {
-        if (sidebarApp.loadingPlaceId == placeId){
-          sidebarApp.loadingPlaceId = null;
-        }
-      }
-    }
-
-    // Запускаем инициализацию карты
+    // Запуск инициализации карты с данными
     initMapWithPlaces();
   </script>
 </body>
