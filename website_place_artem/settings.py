@@ -41,6 +41,7 @@ INSTALLED_APPS = [
     'django.contrib.messages',
     'django.contrib.staticfiles',
     'app',
+    'places',
 ]
 
 MIDDLEWARE = [
@@ -125,6 +126,16 @@ STATICFILES_DIRS = [
 ]
 
 STATIC_ROOT = BASE_DIR / "staticfiles"
+
+
+# Media files configuration for user-uploaded content
+# MEDIA_URL defines the base URL for serving media files (e.g., '/media/')
+# MEDIA_ROOT defines the filesystem path where uploaded files are stored
+
+MEDIA_URL = '/media/'
+
+MEDIA_ROOT = BASE_DIR / 'media'
+
 
 # Default primary key field type
 # https://docs.djangoproject.com/en/5.2/ref/settings/#default-auto-field
