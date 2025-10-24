@@ -14,6 +14,7 @@ import os
 from pathlib import Path
 from dotenv import load_dotenv
 
+# Загружаем переменные окружения из .env файла
 load_dotenv()
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
@@ -40,11 +41,13 @@ INSTALLED_APPS = [
     'django.contrib.sessions',
     'django.contrib.messages',
     'django.contrib.staticfiles',
+    'django_extensions',
     'nested_admin',
     'ckeditor',
     'app',
     'places',
 ]
+
 
 MIDDLEWARE = [
     'django.middleware.security.SecurityMiddleware',
@@ -87,6 +90,19 @@ DATABASES = {
 }
 
 
+# Для production можно использовать PostgreSQL:
+# DATABASES = {
+#     'default': {
+#         'ENGINE': 'django.db.backends.postgresql',
+#         'NAME': os.getenv('DB_NAME', 'mydatabase'),
+#         'USER': os.getenv('DB_USER', 'myuser'),
+#         'PASSWORD': os.getenv('DB_PASSWORD', 'mypassword'),
+#         'HOST': os.getenv('DB_HOST', 'localhost'),
+#         'PORT': os.getenv('DB_PORT', '5432'),
+#     }
+# }
+
+
 # Password validation
 # https://docs.djangoproject.com/en/5.2/ref/settings/#auth-password-validators
 
@@ -123,16 +139,14 @@ USE_TZ = True
 
 STATIC_URL = '/static/'
 
+STATIC_ROOT = os.getenv('STATIC_ROOT', BASE_DIR / 'staticfiles')  # Для collectstatic
+
 STATICFILES_DIRS = [
     BASE_DIR / "app" / "static",
 ]
 
-STATIC_ROOT = BASE_DIR / "staticfiles"
 
-
-# Media files configuration for user-uploaded content
-# MEDIA_URL defines the base URL for serving media files (e.g., '/media/')
-# MEDIA_ROOT defines the filesystem path where uploaded files are stored
+# Media files
 
 MEDIA_URL = '/media/'
 
@@ -143,3 +157,12 @@ MEDIA_ROOT = BASE_DIR / 'media'
 # https://docs.djangoproject.com/en/5.2/ref/settings/#default-auto-field
 
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
+
+
+# Security settings for production
+if not DEBUG:
+    SECURE_SSL_REDIRECT = True
+    SESSION_COOKIE_SECURE = True
+    CSRF_COOKIE_SECURE = True
+    SECURE_BROWSER_XSS_FILTER = True
+    SECURE_CONTENT_TYPE_NOSNIFF = True

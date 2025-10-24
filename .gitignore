@@ -1,27 +1,30 @@
-# Django
-*.log
-*.pot
-*.pyc
-__pycache__/
-local_settings.py
-db.sqlite3
-media/
+# SSL/TSL сертификаты и ключи
+*.key
+*.pem
+*.crt
+*.cer
+*.csr
+cert.*
+private*
+
+# Environment variables
+.env
+.env.local
+
+# Database
+*.sqlite3
+*.db
+
+# PyCharm
+.idea/
 
 # Virtual environment
 venv/
 env/
 .venv/
 
-# Environment variables
-.env
-.env.local
+# Static files (в production собираются через collectstatic)
+staticfiles/
 
-# IDE
-.vscode/
-.idea/
-*.swp
-*.swo
-
-# OS
-.DS_Store
-Thumbs.db
+# Media files (пользовательский контент)
+media/
