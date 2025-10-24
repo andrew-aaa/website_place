@@ -12,7 +12,7 @@ class Place(models.Model):
         lng (FloatField): Долгота географических координат
         lat (FloatField): Широта географических координат
     """
-    
+
     title = models.CharField('Название', max_length=200)
     description_short = models.TextField('Краткое описание', blank=True)
     description_long = models.TextField('Полное описание', blank=True)
@@ -69,10 +69,10 @@ class PlaceImage(models.Model):
             verbose_name: Человекочитаемое название в единственном числе
             verbose_name_plural: Человекочитаемое название во множественном числе
         """
-
+        
         ordering = ['position']
         verbose_name = 'Изображение места'
-        verbose_name_plural = 'Изображение мест'
+        verbose_name_plural = 'Изображения мест'
     
     def __str__(self):
         """
@@ -80,5 +80,5 @@ class PlaceImage(models.Model):
         
         @return {str} - Строка в формате "позиция - название места"
         """
-
+        
         return f'{self.position} - {self.place.title}'
